@@ -1,0 +1,1113 @@
+# Appendix — Source Code Export
+# Extracted from notebook: /content/drive/MyDrive/Colab Notebooks/2507582_ML_CW.ipynb
+# Export time (UTC): 2025-12-11 16:06:23.195602
+
+
+
+# ==================== CODE CELL 0 ====================
+# === Cell 1: install (Colab only) and imports ===
+# (Uncomment install lines if running in Colab and seaborn not installed)
+# !pip install seaborn
+
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from google.colab import drive
+drive.mount('/content/drive')  # follow auth steps
+FILE = '/content/WA_Fn-UseC_-Telco-Customer-Churn.csv'
+
+sns.set_style("whitegrid")   # safe seaborn style
+%matplotlib inline
+
+OUTDIR = "figures_task1"
+os.makedirs(OUTDIR, exist_ok=True)
+
+
+
+
+# ==================== CODE CELL 1 ====================
+# ONE-CELL RECOVERY: mounts Drive, loads dataset, cleans, saves meta to Drive/results
+# Paste & run this cell at the top of your notebook.
+
+import os, shutil, pprint, pandas as pd, numpy as np
+
+# 1) Mount Drive if not already mounted (colab only)
+try:
+    from google.colab import drive
+    drive.mount('/content/drive', force_remount=False)
+    drive_root = '/content/drive/MyDrive'
+    print("Drive mounted at", drive_root)
+except Exception as e:
+    # not in Colab or drive mount not needed
+    drive_root = None
+    print("Drive mount skipped or not available:", e)
+
+# 2) Try to find the CSV automatically in common locations
+candidates = [
+    "/content/WA_Fn-UseC_-Telco-Customer-Churn.csv",
+    os.path.join(drive_root, "Colab Notebooks/WA_Fn-UseC_-Telco-Customer-Churn.csv") if drive_root else None,
+    os.path.join(drive_root, "WA_Fn-UseC_-Telco-Customer-Churn.csv") if drive_root else None,
+    os.path.join(drive_root, "Course_Work", "WA_Fn-UseC_-Telco-Customer-Churn.csv") if drive_root else None
+]
+# extend with any CSVs that match "telco" or "churn"
+if drive_root:
+    for root, dirs, files in os.walk(drive_root):
+        for f in files:
+            if f.lower().endswith('.csv') and ('telco' in f.lower() or 'churn' in f.lower() or 'wa_fn' in f.lower()):
+                candidates.append(os.path.join(root, f))
+
+# Deduplicate and filter existing
+candidates = [c for c in dict.fromkeys(candidates) if c]
+found = [c for c in candidates if os.path.exists(c)]
+
+print("CSV candidates searched (first 20):")
+pprint.pprint(candidates[:20])
+print("\nFound CSVs:")
+pprint.pprint(found[:10])
+
+if not found:
+    raise FileNotFoundError("No telco CSV found automatically. Upload the CSV to Drive or /content and re-run. Use Colab Files pane to upload or place it in 'Colab Notebooks' in Drive.")
+
+# use the first found
+csv_path = found[0]
+print("Using CSV:", csv_path)
+
+# 3) Set OUTDIR to a persistent folder in Drive if possible, else /content/results
+if drive_root:
+    OUTDIR = os.path.join(drive_root, "ML_Coursework_results")
+else:
+    OUTDIR = "/content/results"
+os.makedirs(OUTDIR, exist_ok=True)
+print("OUTDIR set to:", OUTDIR)
+
+# 4) If csv is in Drive, copy to /content for faster IO (optional)
+local_csv = "/content/WA_Fn-UseC_-Telco-Customer-Churn.csv"
+if csv_path != local_csv:
+    try:
+        shutil.copy(csv_path, local_csv)
+        print("Copied CSV to", local_csv)
+        csv_path = local_csv
+    except Exception as e:
+        print("Could not copy to /content, will use Drive path directly. Error:", e)
+
+# 5) Load dataset into df
+df = pd.read_csv(csv_path)
+print("Loaded df shape:", df.shape)
+
+# 6) Basic cleaning (TotalCharges numeric)
+if 'TotalCharges' in df.columns:
+    df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+    df['TotalCharges'] = df['TotalCharges'].fillna(df['TotalCharges'].median())
+    print("Cleaned TotalCharges; nulls after fill:", int(df['TotalCharges'].isnull().sum()))
+else:
+    print("Warning: 'TotalCharges' not found in columns:", list(df.columns)[:20])
+
+# 7) Build and save dataset meta (attributes, dtype, missing %)
+meta_df = pd.DataFrame({
+    'attribute': df.columns,
+    'dtype': [str(df[c].dtype) for c in df.columns],
+    'missing_count': [int(df[c].isnull().sum()) for c in df.columns],
+    'missing_pct': [float(df[c].isnull().mean() * 100) for c in df.columns]
+})
+
+meta_df_path = os.path.join(OUTDIR, 'dataset_meta_attributes.csv')
+meta_df.to_csv(meta_df_path, index=False)
+print("Saved dataset meta ->", meta_df_path)
+
+# 8) Summary and quick checks
+print("\nPreview of meta_df:")
+display(meta_df.head(40))
+
+print("\nSaved files in OUTDIR (first 50):")
+pprint.pprint(sorted(os.listdir(OUTDIR))[:50])
+
+# 9) Keep df in memory for subsequent cells
+print("\nDataframe 'df' is loaded and ready to use.")
+
+
+
+# ==================== CODE CELL 2 ====================
+# === Save dataset meta info (attributes, dtype, missing %) ===
+meta_df = pd.DataFrame({
+    'attribute': df.columns,
+    'dtype': [str(df[c].dtype) for c in df.columns],
+    'missing_count': [df[c].isnull().sum() for c in df.columns],
+    'missing_pct': [df[c].isnull().mean() * 100 for c in df.columns]
+})
+
+meta_df_path = os.path.join(OUTDIR, 'dataset_meta_attributes.csv')
+meta_df.to_csv(meta_df_path, index=False)
+print("Saved dataset meta ->", meta_df_path)
+display(meta_df)
+
+
+# ==================== CODE CELL 3 ====================
+# === Cell 2: load file (set FILE variable earlier) ===
+# If not set, set here (example)
+# FILE = "/content/WA_Fn-UseC_-Telco-Customer-Churn.csv"
+df = pd.read_csv(FILE)
+print("Initial shape:", df.shape)
+display(df.head(5))
+
+
+
+
+# ==================== CODE CELL 4 ====================
+# === Cell 3: Fix TotalCharges and report missing ===
+df['TotalCharges'] = df['TotalCharges'].replace(" ", np.nan)
+df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+# If TotalCharges missing and tenure == 0, set to 0
+df.loc[df['TotalCharges'].isnull() & (df['tenure'] == 0), 'TotalCharges'] = 0.0
+before = df.shape[0]
+df = df.dropna().reset_index(drop=True)
+after = df.shape[0]
+print(f"Dropped rows with remaining missing values: {before - after}")
+print("New shape:", df.shape)
+
+
+# ==================== CODE CELL 5 ====================
+# === Cell 4: Basic meta info (save table) ===
+meta = pd.DataFrame({
+    'n_rows': [before],
+    'n_cols': [df.shape[1]],
+    'dropped_missing_rows': [before - after]
+})
+meta.to_csv(os.path.join(OUTDIR, 'dataset_meta.csv'), index=False)
+display(meta)
+
+
+
+# ==================== CODE CELL 6 ====================
+# === Cell 5: Class balance & numeric summary ===
+churn_counts = df['Churn'].value_counts().rename_axis('Churn').reset_index(name='count')
+churn_props  = df['Churn'].value_counts(normalize=True).rename_axis('Churn').reset_index(name='proportion')
+churn_counts.to_csv(os.path.join(OUTDIR, 'churn_counts.csv'), index=False)
+churn_props.to_csv(os.path.join(OUTDIR, 'churn_props.csv'), index=False)
+display(churn_counts); display(churn_props)
+
+num_cols = df.select_dtypes(include=['int64','float64']).columns.tolist()
+num_summary = df[num_cols].describe().T
+num_summary.to_csv(os.path.join(OUTDIR, 'numeric_summary.csv'))
+display(num_summary)
+
+
+# ==================== CODE CELL 7 ====================
+# === Numeric medians and means for churn groups ===
+df_group = df.copy()
+df_group['Churn_flag'] = df_group['Churn'].map({'No':0, 'Yes':1})
+
+stats = df_group.groupby('Churn')[['tenure','MonthlyCharges','TotalCharges']].agg(['median','mean','count'])
+stats.columns = ['_'.join(col).strip() for col in stats.columns.values]
+
+stats_path = os.path.join(OUTDIR, 'churn_numeric_stats_by_group.csv')
+stats.to_csv(stats_path)
+
+print("Saved churn numeric stats ->", stats_path)
+display(stats)
+
+
+
+# ==================== CODE CELL 8 ====================
+# === Cell 6: Categorical summaries & churn rate per category ===
+cat_cols = df.select_dtypes(include=['object']).columns.tolist()
+if 'customerID' in cat_cols: cat_cols.remove('customerID')
+
+for c in cat_cols:
+    counts = df[c].value_counts().rename_axis(c).reset_index(name='count')
+    churn_rate = df.groupby(c)['Churn'].apply(lambda s: (s=='Yes').mean()).rename('churn_rate').reset_index()
+    summary = counts.merge(churn_rate, on=c)
+    summary['churn_pct'] = summary['churn_rate'] * 100
+    summary = summary.sort_values('count', ascending=False)
+    fname = os.path.join(OUTDIR, f'cat_summary_{c}.csv')
+    summary.to_csv(fname, index=False)
+    print(f"Saved categorical summary: {fname}")
+    display(summary.head(6))
+
+
+
+# ==================== CODE CELL 9 ====================
+# === Cell 7: Bivariate plots (save PNGs) ===
+# Helper to save & show
+def save_fig(fig, name):
+    path = os.path.join(OUTDIR, name)
+    fig.savefig(path, bbox_inches='tight', dpi=150)
+    print("Saved:", path)
+
+# 1) Churn count plot
+fig, ax = plt.subplots()
+sns.countplot(x='Churn', data=df, ax=ax)
+ax.set_title('Churn counts')
+save_fig(fig, 'churn_counts.png')
+plt.show()
+
+# 2) Tenure distribution & boxplot by churn
+fig = plt.figure(figsize=(8,3))
+sns.histplot(df['tenure'], bins=30)
+plt.title('Distribution of Tenure')
+save_fig(fig, 'dist_tenure.png')
+plt.show()
+
+fig, ax = plt.subplots(figsize=(6,4))
+sns.boxplot(x='Churn', y='tenure', data=df, ax=ax)
+ax.set_title('Tenure by Churn')
+save_fig(fig, 'tenure_by_churn.png')
+plt.show()
+
+# 3) MonthlyCharges distribution & boxplot by churn
+fig = plt.figure(figsize=(8,3))
+sns.histplot(df['MonthlyCharges'], bins=30)
+plt.title('Distribution of MonthlyCharges')
+save_fig(fig, 'dist_monthlycharges.png')
+plt.show()
+
+fig, ax = plt.subplots(figsize=(6,4))
+sns.boxplot(x='Churn', y='MonthlyCharges', data=df, ax=ax)
+ax.set_title('MonthlyCharges by Churn')
+save_fig(fig, 'monthly_by_churn.png')
+plt.show()
+
+# 4) Contract vs churn (stacked percent)
+contract_ct = pd.crosstab(df['Contract'], df['Churn'])
+contract_pct = contract_ct.div(contract_ct.sum(axis=1), axis=0) * 100
+fig, ax = plt.subplots(figsize=(6,4))
+contract_pct.plot(kind='bar', stacked=True, ax=ax)
+ax.set_ylabel('Percentage (%)'); ax.set_title('Contract Type vs Churn (%)')
+save_fig(fig, 'contract_vs_churn.png')
+plt.show()
+
+# 5) PaymentMethod vs churn
+if 'PaymentMethod' in df.columns:
+    pm_ct = pd.crosstab(df['PaymentMethod'], df['Churn'])
+    pm_pct = pm_ct.div(pm_ct.sum(axis=1), axis=0) * 100
+    fig, ax = plt.subplots(figsize=(9,4))
+    pm_pct.plot(kind='bar', stacked=True, ax=ax)
+    ax.set_ylabel('Percentage (%)'); ax.set_title('PaymentMethod vs Churn (%)')
+    plt.xticks(rotation=45, ha='right')
+    save_fig(fig, 'payment_vs_churn.png')
+    plt.show()
+
+# 6) Correlation heatmap for numeric features
+fig, ax = plt.subplots(figsize=(6,5))
+sns.heatmap(df[num_cols].corr(), annot=True, fmt='.2f', cmap='coolwarm', ax=ax)
+ax.set_title('Numeric Feature Correlation')
+save_fig(fig, 'corr_heatmap.png')
+plt.show()
+
+
+
+# ==================== CODE CELL 10 ====================
+# === Cell 8: Churn lift tables for key features ===
+overall_churn_rate = (df['Churn']=='Yes').mean()
+print("Overall churn rate (fraction):", overall_churn_rate)
+features_to_check = ['Contract','InternetService','PaymentMethod','OnlineSecurity','TechSupport','StreamingTV']
+for f in features_to_check:
+    if f in df.columns:
+        rates = df.groupby(f)['Churn'].apply(lambda s: (s=='Yes').mean()).rename('churn_rate').reset_index()
+        rates['churn_pct'] = rates['churn_rate']*100
+        rates['lift'] = rates['churn_rate'] / overall_churn_rate
+        fname = os.path.join(OUTDIR, f'{f}_churn_rates.csv')
+        rates.to_csv(fname, index=False)
+        print(f"Saved churn lift table: {fname}")
+        display(rates.sort_values('lift', ascending=False).head(10))
+
+# === Cell 9: Save a small sample of the cleaned data for the report appendix ===
+df.head(200).to_csv(os.path.join(OUTDIR, "cleaned_sample_200.csv"), index=False)
+print("All outputs saved to", OUTDIR)
+
+
+# ==================== CODE CELL 11 ====================
+# ============================================================
+# TASK 2 — PREPROCESSING FOR MODELLING
+# ============================================================
+
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+
+# Make a copy of cleaned df from Task 1
+df_model = df.copy()
+
+# Remove customerID if present
+if 'customerID' in df_model.columns:
+    df_model = df_model.drop(columns=['customerID'])
+
+# Encode target (Yes = 1, No = 0)
+df_model['Churn'] = df_model['Churn'].map({'No': 0, 'Yes': 1})
+
+# Split into X (features) and y (target)
+X = df_model.drop('Churn', axis=1)
+y = df_model['Churn']
+
+# Identify numeric & categorical columns
+numeric_features = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
+categorical_features = X.select_dtypes(include=['object']).columns.tolist()
+
+print("Numeric features:", numeric_features)
+print("Categorical features:", categorical_features)
+
+# ---- Create preprocessing pipeline ----
+numeric_transformer = StandardScaler()
+categorical_transformer = OneHotEncoder(handle_unknown='ignore')
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numeric_transformer, numeric_features),
+        ('cat', categorical_transformer, categorical_features)
+    ]
+)
+
+print("Preprocessing pipeline created successfully.")
+
+
+
+# ==================== CODE CELL 12 ====================
+# ============================================================
+# TASK 2 — TRAIN / VALIDATION / TEST SPLIT
+# ============================================================
+
+from sklearn.model_selection import train_test_split
+
+# Train 70% / Temp 30%
+X_train, X_temp, y_train, y_temp = train_test_split(
+    X, y,
+    test_size=0.30,
+    stratify=y,
+    random_state=42
+)
+
+# Validation 15% / Test 15%
+X_val, X_test, y_val, y_test = train_test_split(
+    X_temp, y_temp,
+    test_size=0.50,
+    stratify=y_temp,
+    random_state=42
+)
+
+print("Train:", X_train.shape)
+print("Validation:", X_val.shape)
+print("Test:", X_test.shape)
+
+# Fit preprocessor only on the TRAIN data
+preprocessor.fit(X_train)
+
+# Transform datasets (used by Neural Network)
+X_train_processed = preprocessor.transform(X_train)
+X_val_processed   = preprocessor.transform(X_val)
+X_test_processed  = preprocessor.transform(X_test)
+
+print("Processed Train shape:", X_train_processed.shape)
+print("Processed Val shape:", X_val_processed.shape)
+print("Processed Test shape:", X_test_processed.shape)
+
+
+
+# ==================== CODE CELL 13 ====================
+# Task 2 — Decision Tree Classifier (GridSearchCV + Evaluation)
+
+
+
+# ==================== CODE CELL 14 ====================
+# === Task 2: Decision Tree training with GridSearchCV ===
+
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
+from sklearn.pipeline import Pipeline
+import joblib
+import pandas as pd
+import numpy as np
+import os
+
+os.makedirs('models', exist_ok=True)
+os.makedirs('results', exist_ok=True)
+
+# Build a pipeline: preprocessor (ColumnTransformer) + Decision Tree
+tree_pipe = Pipeline([
+    ('preproc', preprocessor),   # uses the preprocessor you created earlier
+    ('clf', DecisionTreeClassifier(random_state=42))
+])
+
+# Parameter grid for GridSearch
+param_grid = {
+    'clf__criterion': ['gini', 'entropy'],
+    'clf__max_depth': [3, 5, 8, 12, None],
+    'clf__min_samples_leaf': [1, 5, 10, 20],
+    'clf__class_weight': [None, 'balanced']
+}
+
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+gs_tree = GridSearchCV(
+    estimator=tree_pipe,
+    param_grid=param_grid,
+    scoring='roc_auc',   # use ROC AUC for ranking
+    cv=cv,
+    n_jobs=-1,
+    verbose=2,
+    return_train_score=True
+)
+
+# Fit on TRAIN (X_train, y_train are from your preprocessing cells)
+gs_tree.fit(X_train, y_train)
+
+# Save GridSearch results
+cv_results_df = pd.DataFrame(gs_tree.cv_results_)
+cv_results_df.to_csv('results/tree_gridsearch_results.csv', index=False)
+print("GridSearch results saved -> results/tree_gridsearch_results.csv")
+
+# Best estimator and params
+best_tree = gs_tree.best_estimator_
+print("Best params:", gs_tree.best_params_)
+print("Best CV ROC AUC:", gs_tree.best_score_)
+
+# Persist the best pipeline
+joblib.dump(best_tree, 'models/tree_pipeline.joblib')
+print("Saved best tree pipeline -> models/tree_pipeline.joblib")
+
+
+
+# ==================== CODE CELL 15 ====================
+cv_df = pd.DataFrame(gs_tree.cv_results_)
+top = cv_df.sort_values('mean_test_score', ascending=False).head(10)
+top[['params','mean_test_score','std_test_score']].to_csv('results/tree_gridsearch_top10.csv', index=False)
+display(top[['params','mean_test_score','std_test_score']].head())
+
+
+
+# ==================== CODE CELL 16 ====================
+# === Evaluation for the best Decision Tree on TEST set ===
+
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+
+# Predict probabilities and classes on TEST
+y_proba_tree = best_tree.predict_proba(X_test)[:, 1]
+y_pred_tree = best_tree.predict(X_test)
+
+# Metrics
+print("Classification report (Decision Tree):")
+print(classification_report(y_test, y_pred_tree, digits=4))
+
+roc_auc = roc_auc_score(y_test, y_proba_tree)
+print(f"Test ROC AUC: {roc_auc:.4f}")
+
+# Confusion matrix
+disp = ConfusionMatrixDisplay.from_predictions(y_test, y_pred_tree)
+plt.title("Decision Tree - Confusion Matrix")
+plt.show()
+
+# ROC curve
+fpr, tpr, _ = roc_curve(y_test, y_proba_tree)
+plt.figure()
+plt.plot(fpr, tpr, label=f"Decision Tree (AUC={roc_auc:.3f})")
+plt.plot([0,1],[0,1],'k--')
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve - Decision Tree")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.savefig('results/tree_roc_curve.png', dpi=150)
+print("ROC curve saved -> results/tree_roc_curve.png")
+plt.show()
+
+# Save test predictions and probabilities for reporting
+pd.DataFrame({
+    'customer_index': X_test.index,
+    'y_true': y_test.values,
+    'y_pred': y_pred_tree,
+    'y_proba': y_proba_tree
+}).to_csv('results/tree_test_predictions.csv', index=False)
+print("Test predictions saved -> results/tree_test_predictions.csv")
+
+
+
+# ==================== CODE CELL 17 ====================
+from sklearn.calibration import calibration_curve
+from sklearn.metrics import brier_score_loss
+y_true = pd.read_csv('results/tree_test_predictions.csv')['y_true']
+y_proba = pd.read_csv('results/tree_test_predictions.csv')['y_proba']
+
+prob_true, prob_pred = calibration_curve(y_true, y_proba, n_bins=10)
+import matplotlib.pyplot as plt
+plt.plot(prob_pred, prob_true, marker='o')
+plt.plot([0,1],[0,1],'k--')
+plt.xlabel('Mean predicted probability')
+plt.ylabel('Fraction of positives')
+plt.title('Calibration curve - Decision Tree')
+plt.savefig('results/tree_calibration.png', dpi=150)
+plt.show()
+
+print("Brier score:", brier_score_loss(y_true, y_proba))
+
+
+
+# ==================== CODE CELL 18 ====================
+import numpy as np
+from sklearn.metrics import precision_recall_fscore_support
+y_true = pd.read_csv('results/tree_test_predictions.csv')['y_true']
+y_proba = pd.read_csv('results/tree_test_predictions.csv')['y_proba']
+rows=[]
+for thr in np.linspace(0.1,0.9,17):
+    y_pred = (y_proba>=thr).astype(int)
+    p,r,f,_ = precision_recall_fscore_support(y_true,y_pred,average='binary',zero_division=0)
+    rows.append({'threshold':thr,'precision':p,'recall':r,'f1':f})
+pd.DataFrame(rows).to_csv('results/tree_threshold_sweep.csv', index=False)
+display(pd.DataFrame(rows).sort_values('f1',ascending=False).head())
+
+
+
+# ==================== CODE CELL 19 ====================
+# === Feature importance mapping ===
+
+import numpy as np
+import pandas as pd
+
+# Extract feature names from the preprocessor
+# numeric_features is list of numeric column names from preprocessing step
+# categorical feature names come from the OneHotEncoder inside the ColumnTransformer
+try:
+    # Access the fitted preprocessor inside the pipeline (best_tree)
+    fitted_preproc = best_tree.named_steps['preproc']
+    # numeric feature names
+    num_feats = numeric_features  # defined in preprocessing cells
+    # categorical one-hot feature names
+    cat_transformer = fitted_preproc.named_transformers_['cat']
+    # If categorical transformer is a pipeline, get the last step
+    if hasattr(cat_transformer, 'named_steps'):
+        # Example: Pipeline with onehot
+        ohe = cat_transformer.named_steps[list(cat_transformer.named_steps.keys())[-1]]
+    else:
+        ohe = cat_transformer
+    cat_feats = list(ohe.get_feature_names_out(categorical_features))
+    feature_names = num_feats + cat_feats
+except Exception as e:
+    # Fallback: try to get feature names from the preprocessor you created earlier
+    try:
+        cat_feats = list(preprocessor.named_transformers_['cat'].get_feature_names_out(categorical_features))
+        feature_names = numeric_features + cat_feats
+    except Exception:
+        # last fallback: numeric features only
+        feature_names = numeric_features
+
+# Get importances from the classifier step
+importances = best_tree.named_steps['clf'].feature_importances_
+
+# Align length safety
+if len(importances) != len(feature_names):
+    print("Warning: mismatch between importances and feature names lengths.")
+    # Trim or pad feature_names to match (best-effort)
+    minlen = min(len(importances), len(feature_names))
+    importances = importances[:minlen]
+    feature_names = feature_names[:minlen]
+
+feat_imp = pd.Series(importances, index=feature_names).sort_values(ascending=False)
+feat_imp.head(30).to_csv('results/tree_top_feature_importances.csv')
+print("Top feature importances saved -> results/tree_top_feature_importances.csv")
+
+# Plot top 20
+top_n = 20
+feat_imp.head(top_n).sort_values().plot(kind='barh', figsize=(8,6))
+plt.title("Top feature importances (Decision Tree)")
+plt.tight_layout()
+plt.savefig('results/tree_feature_importances.png', dpi=150)
+print("Feature importance plot saved -> results/tree_feature_importances.png")
+plt.show()
+
+
+
+# ==================== CODE CELL 20 ====================
+# === Permutation importance (robust, handles name/length mismatches) ===
+import os
+import joblib
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.inspection import permutation_importance
+
+os.makedirs('results', exist_ok=True)
+
+# 1) Load pipeline (preprocessor + classifier) - adjust path if different
+pipe_path = 'models/tree_pipeline.joblib'
+if not os.path.exists(pipe_path):
+    raise FileNotFoundError(f"Pipeline not found at {pipe_path}. Run and save the Decision Tree pipeline first.")
+
+pipe = joblib.load(pipe_path)
+
+# 2) Ensure X_test and y_test exist in notebook (raw X_test, not preprocessed arrays)
+try:
+    X_test  # reference to raise NameError if undefined
+    y_test
+except NameError:
+    raise NameError("X_test or y_test not found in namespace. Re-run preprocessing/split cells before running permutation importance.")
+
+# 3) Compute permutation importance on the whole pipeline (it will call preprocessor internally)
+print("Computing permutation importance (this may take a little time)...")
+res = permutation_importance(pipe, X_test, y_test, n_repeats=20, random_state=42, n_jobs=-1, scoring='roc_auc')
+
+imp_mean = res.importances_mean  # shape = n_transformed_features
+imp_std  = res.importances_std
+
+# 4) Try to get transformed feature names from the fitted preprocessor
+feature_names = None
+try:
+    # If the pipeline has a named 'preproc' step and it supports get_feature_names_out
+    preproc = pipe.named_steps.get('preproc', None)
+    if preproc is not None:
+        try:
+            # This will work for modern sklearn ColumnTransformer
+            feature_names = list(preproc.get_feature_names_out())
+        except Exception:
+            # fallback: try with input feature names (X_test columns)
+            try:
+                feature_names = list(preproc.get_feature_names_out(X_test.columns))
+            except Exception:
+                feature_names = None
+    # Last fallback: attempt to build names from transformers (older sklearn)
+    if feature_names is None:
+        # try numeric + categorical via named transformers
+        try:
+            num_feats = pipe.named_steps['preproc'].transformers_[0][2]
+            cat_transformer = pipe.named_steps['preproc'].transformers_[1][1]
+            cat_cols = pipe.named_steps['preproc'].transformers_[1][2]
+            # If categorical transformer is an OneHotEncoder pipeline, locate encoder
+            if hasattr(cat_transformer, 'named_steps'):
+                enc = cat_transformer.named_steps[list(cat_transformer.named_steps.keys())[-1]]
+            else:
+                enc = cat_transformer
+            cat_names = list(enc.get_feature_names_out(cat_cols))
+            feature_names = list(num_feats) + list(cat_names)
+        except Exception:
+            feature_names = None
+except Exception:
+    feature_names = None
+
+# 5) If still none, create placeholder names matching the transformed dimension
+n_feats = imp_mean.shape[0]
+if feature_names is None or len(feature_names) != n_feats:
+    print("Warning: could not reliably infer transformed feature names. Creating positional feature names.")
+    feature_names = [f"f_{i}" for i in range(n_feats)]
+
+# 6) Build DataFrame and save (align lengths)
+imp_df = pd.DataFrame({
+    'feature': feature_names,
+    'importance_mean': imp_mean,
+    'importance_std': imp_std
+})
+# ensure correct length
+imp_df = imp_df.iloc[:n_feats].copy()
+
+imp_df = imp_df.sort_values('importance_mean', ascending=False).reset_index(drop=True)
+imp_df.to_csv('results/permutation_importance.csv', index=False)
+print("Saved permutation importances -> results/permutation_importance.csv")
+
+# 7) Plot top 20 importances
+top_n = min(20, len(imp_df))
+plt.figure(figsize=(8, max(4, top_n*0.25)))
+plt.barh(imp_df['feature'].head(top_n)[::-1], imp_df['importance_mean'].head(top_n)[::-1])
+plt.xlabel('Mean permutation importance (decrease in score)')
+plt.title('Top permutation importances (Decision Tree pipeline)')
+plt.tight_layout()
+plt.savefig('results/permutation_importance_top20.png', dpi=150)
+plt.show()
+
+# 8) Print a few top features
+display(imp_df.head(30))
+
+
+
+# ==================== CODE CELL 21 ====================
+# === Fairness / Subgroup Performance Analysis ===
+import pandas as pd
+from sklearn.metrics import precision_score, recall_score
+
+preds = pd.read_csv('results/tree_test_predictions.csv')
+
+groups = ['Contract','InternetService','PaymentMethod']
+rows = []
+
+for g in groups:
+    if g in X_test.columns:
+        for val in X_test[g].unique():
+            mask = (X_test[g] == val)
+            if mask.sum() < 30:  # skip tiny groups
+                continue
+            y_t = y_test[mask]
+            y_p = preds.loc[mask.values, 'y_pred'].values
+            rows.append({
+                'group': g,
+                'value': val,
+                'n': mask.sum(),
+                'precision': precision_score(y_t, y_p, zero_division=0),
+                'recall': recall_score(y_t, y_p, zero_division=0),
+            })
+
+fair_df = pd.DataFrame(rows)
+fair_df.to_csv('results/fairness_by_group.csv', index=False)
+display(fair_df)
+
+
+
+# ==================== CODE CELL 22 ====================
+# Task 2 — Neural Network Model (Training, Validation, Evaluation)
+
+
+
+# ==================== CODE CELL 23 ====================
+# ============================================================
+# Task 2 — Neural Network: Model Architecture
+# ============================================================
+
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+
+# Input dimension from processed training data
+input_dim = X_train_processed.shape[1]
+print("Input dimension for NN:", input_dim)
+
+def build_nn(input_dim, lr=1e-3, dropout=0.3):
+    model = keras.Sequential([
+        layers.Input(shape=(input_dim,)),
+        layers.Dense(128, activation='relu'),
+        layers.Dropout(dropout),
+        layers.Dense(64, activation='relu'),
+        layers.Dropout(dropout),
+        layers.Dense(1, activation='sigmoid')
+    ])
+
+    model.compile(
+        optimizer=keras.optimizers.Adam(learning_rate=lr),
+        loss='binary_crossentropy',
+        metrics=[keras.metrics.AUC(name='auc')]  # AUC is required for comparison
+    )
+    return model
+
+nn_model = build_nn(input_dim=input_dim)
+nn_model.summary()
+
+
+
+# ==================== CODE CELL 24 ====================
+# ============================================================
+# Task 2 — Neural Network: Training
+# ============================================================
+
+from sklearn.utils import class_weight
+import numpy as np
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+import os
+
+os.makedirs("models", exist_ok=True)
+
+# Compute class weights (important for imbalance)
+cw = class_weight.compute_class_weight(
+    class_weight='balanced',
+    classes=np.unique(y_train),
+    y=y_train
+)
+class_weights = {0: cw[0], 1: cw[1]}
+print("Class weights:", class_weights)
+
+# Callbacks
+early_stop = EarlyStopping(
+    monitor='val_auc',
+    mode='max',
+    patience=10,
+    restore_best_weights=True,
+    verbose=1
+)
+
+reduce_lr = ReduceLROnPlateau(
+    monitor='val_auc',
+    mode='max',
+    factor=0.5,
+    patience=5,
+    verbose=1
+)
+
+checkpoint_path = "models/nn_best_model.h5"
+model_ckpt = ModelCheckpoint(
+    filepath=checkpoint_path,
+    monitor='val_auc',
+    mode='max',
+    save_best_only=True,
+    verbose=1
+)
+
+# Train model
+history = nn_model.fit(
+    X_train_processed,
+    y_train,
+    validation_data=(X_val_processed, y_val),
+    epochs=100,
+    batch_size=64,
+    class_weight=class_weights,
+    callbacks=[early_stop, reduce_lr, model_ckpt],
+    verbose=2
+)
+
+print("Training complete. Best model saved to:", checkpoint_path)
+
+
+
+# ==================== CODE CELL 25 ====================
+# ============================================================
+# Task 2 — Neural Network: Training Curves
+# ============================================================
+import matplotlib.pyplot as plt
+
+# Loss curve
+plt.figure(figsize=(6,4))
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Val Loss')
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Neural Network — Training Loss Curve")
+plt.legend()
+plt.grid()
+plt.savefig("results/nn_loss_curve.png", dpi=150)
+plt.show()
+
+# AUC curve
+plt.figure(figsize=(6,4))
+plt.plot(history.history['auc'], label='Train AUC')
+plt.plot(history.history['val_auc'], label='Val AUC')
+plt.xlabel("Epoch")
+plt.ylabel("AUC")
+plt.title("Neural Network — Training AUC Curve")
+plt.legend()
+plt.grid()
+plt.savefig("results/nn_auc_curve.png", dpi=150)
+plt.show()
+
+print("Saved loss and AUC curves in 'results/' folder.")
+
+
+
+# ==================== CODE CELL 26 ====================
+# ============================================================
+# Task 2 — Neural Network: Test Set Evaluation
+# ============================================================
+
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    roc_auc_score, average_precision_score,
+    confusion_matrix, classification_report
+)
+import pandas as pd
+
+# Load best model weights
+nn_model.load_weights("models/nn_best_model.h5")
+
+# Predictions
+y_proba_nn = nn_model.predict(X_test_processed).ravel()
+y_pred_nn = (y_proba_nn >= 0.5).astype(int)
+
+# Compute metrics
+nn_metrics = {
+    "model": "NeuralNetwork",
+    "accuracy": accuracy_score(y_test, y_pred_nn),
+    "precision": precision_score(y_test, y_pred_nn, zero_division=0),
+    "recall": recall_score(y_test, y_pred_nn, zero_division=0),
+    "f1": f1_score(y_test, y_pred_nn, zero_division=0),
+    "roc_auc": roc_auc_score(y_test, y_proba_nn),
+    "pr_auc": average_precision_score(y_test, y_proba_nn)
+}
+
+# Print metrics
+print("\nNeural Network — Test Metrics:")
+for k, v in nn_metrics.items():
+    if k != "model":
+        print(f"{k}: {v:.4f}")
+
+# Save metrics
+os.makedirs("results", exist_ok=True)
+pd.DataFrame([nn_metrics]).to_csv("results/nn_metrics.csv", index=False)
+print("Saved metrics -> results/nn_metrics.csv")
+
+# Print classification report and confusion matrix
+print("\nClassification Report:\n", classification_report(y_test, y_pred_nn))
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred_nn))
+
+# Save predictions
+pd.DataFrame({
+    "y_true": y_test.values,
+    "y_pred": y_pred_nn,
+    "y_proba": y_proba_nn
+}).to_csv("results/nn_test_predictions.csv", index=False)
+print("Saved predictions -> results/nn_test_predictions.csv")
+
+
+
+# ==================== CODE CELL 27 ====================
+# Run this single helper cell to produce results/tree_metrics.csv (if possible)
+import os
+import pandas as pd
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, average_precision_score, classification_report, confusion_matrix
+
+os.makedirs('results', exist_ok=True)
+
+def save_tree_metrics_from_preds(preds_path='results/tree_test_predictions.csv', out_path='results/tree_metrics.csv'):
+    df = pd.read_csv(preds_path)
+    y_true = df['y_true'].values
+    y_pred = df['y_pred'].values
+    y_proba = df['y_proba'].values
+    metrics = {
+        'model':'DecisionTree',
+        'accuracy': accuracy_score(y_true, y_pred),
+        'precision': precision_score(y_true, y_pred, zero_division=0),
+        'recall': recall_score(y_true, y_pred, zero_division=0),
+        'f1': f1_score(y_true, y_pred, zero_division=0),
+        'roc_auc': roc_auc_score(y_true, y_proba),
+        'pr_auc': average_precision_score(y_true, y_proba)
+    }
+    pd.DataFrame([metrics]).to_csv(out_path, index=False)
+    print(f"Saved metrics to {out_path}")
+    print("\nClassification report:\n", classification_report(y_true, y_pred))
+    print("Confusion matrix:\n", confusion_matrix(y_true, y_pred))
+
+# 1) If predictions CSV exists, use it (fastest)
+preds_file = 'results/tree_test_predictions.csv'
+if os.path.exists(preds_file):
+    print("Found existing predictions:", preds_file)
+    save_tree_metrics_from_preds(preds_file)
+else:
+    # 2) Try to use a pipeline saved on disk
+    model_path = 'models/tree_pipeline.joblib'
+    if os.path.exists(model_path):
+        print("Found saved pipeline:", model_path)
+        try:
+            import joblib
+            pipe = joblib.load(model_path)
+            # Ensure X_test is defined in notebook
+            if 'X_test' in globals():
+                # pipeline expects raw X_test (not preprocessed arrays)
+                y_proba = pipe.predict_proba(X_test)[:,1]
+                y_pred = pipe.predict(X_test)
+                y_true = y_test.values
+                df = pd.DataFrame({'y_true': y_true, 'y_pred': y_pred, 'y_proba': y_proba})
+                df.to_csv(preds_file, index=False)
+                print("Saved predictions ->", preds_file)
+                save_tree_metrics_from_preds(preds_file)
+            else:
+                print("X_test/y_test are not present in this notebook's namespace. Re-run the preprocessing/split cells so X_test and y_test are defined, then re-run this cell.")
+        except Exception as e:
+            print("Error loading pipeline:", e)
+    else:
+        # 3) Try to use GridSearch object 'gs_tree' or 'best_tree' in memory
+        if 'gs_tree' in globals() or 'best_tree' in globals():
+            print("Found GridSearch/best_tree in memory.")
+            try:
+                est = globals().get('best_tree', None)
+                if est is None:
+                    est = gs_tree.best_estimator_
+                if 'X_test' not in globals():
+                    print("X_test/y_test not found in namespace. Re-run preprocessing/split cells and then re-run the Decision Tree evaluation cell (the cell that computes and saves tree_test_predictions.csv).")
+                else:
+                    y_proba = est.predict_proba(X_test)[:,1]
+                    y_pred = est.predict(X_test)
+                    y_true = y_test.values
+                    pd.DataFrame({'y_true': y_true, 'y_pred': y_pred, 'y_proba': y_proba}).to_csv(preds_file, index=False)
+                    print("Saved predictions ->", preds_file)
+                    save_tree_metrics_from_preds(preds_file)
+            except Exception as e:
+                print("Could not compute predictions from in-memory estimator:", e)
+        else:
+            # 4) Nothing found => instruct user what to run
+            print("No tree predictions or model found.")
+            print("- If you have not run the Decision Tree evaluation cell, please run the cell that:")
+            print("    * computes y_pred_tree and y_proba_tree,")
+            print("    * saves results/tree_test_predictions.csv, and")
+            print("    * saves results/tree_metrics.csv (or run this helper again after the predictions file exists).")
+            print("\nSuggested cells to re-run (in order):")
+            print("1) The Decision Tree GridSearch training cell (creates gs_tree / best_tree).")
+            print("2) The Decision Tree evaluation cell (that calculates y_pred_tree, y_proba_tree and saves results/tree_test_predictions.csv and results/tree_metrics.csv).")
+            print("\nIf you want I can re-run a quick DecisionTree (no GridSearch) to produce metrics now — say 'run quick DT' and I will provide a cell that fits your current preprocessed data.")
+
+
+
+# ==================== CODE CELL 28 ====================
+# Task 2 — Model Comparison (Decision Tree vs Neural Network)
+# This section compares both models using evaluation metrics, ROC curves, and Precision–Recall curves.
+
+
+
+# ==================== CODE CELL 29 ====================
+# ============================================================
+# Task 2 — Model Comparison: Metrics Table
+# ============================================================
+
+import pandas as pd
+import os
+
+# Load previously saved metrics
+tree_metrics_path = "results/tree_metrics.csv"
+nn_metrics_path = "results/nn_metrics.csv"
+
+if not (os.path.exists(tree_metrics_path) and os.path.exists(nn_metrics_path)):
+    raise FileNotFoundError("Run both Decision Tree and Neural Network evaluation cells first!")
+
+tree_metrics = pd.read_csv(tree_metrics_path)
+nn_metrics = pd.read_csv(nn_metrics_path)
+
+# Combine into one table
+comparison_df = pd.concat([tree_metrics, nn_metrics], ignore_index=True)
+
+# Save for report
+comparison_df.to_csv("results/models_comparison.csv", index=False)
+
+print("Saved combined comparison table -> results/models_comparison.csv")
+display(comparison_df)
+
+
+
+# ==================== CODE CELL 30 ====================
+import os, pprint
+
+files_needed = [
+ 'results/tree_test_predictions.csv',
+ 'results/tree_metrics.csv',
+ 'results/nn_test_predictions.csv',
+ 'results/nn_metrics.csv',
+ 'results/models_comparison.csv'
+]
+
+exist = {f: os.path.exists(f) for f in files_needed}
+pprint.pprint(exist)
+print("\nDirectory listing of results/:")
+if os.path.exists('results'):
+    print(os.listdir('results'))
+else:
+    print("results/ folder not found")
+
+
+
+# ==================== CODE CELL 31 ====================
+req = """pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+tensorflow
+joblib
+"""
+open("requirements.txt","w").write(req)
+print("requirements.txt saved.")
+
+
+
+# ==================== CODE CELL 32 ====================
+readme_text = """# Telco Customer Churn Prediction
+This repository contains:
+- Task 1 (EDA)
+- Task 2 (Decision Tree, Neural Network, Model Comparison)
+- Task 3 (AI Ethics & Deployment)
+Outputs stored in results/.
+"""
+open("README.md","w").write(readme_text)
+print("README.md saved.")
+
