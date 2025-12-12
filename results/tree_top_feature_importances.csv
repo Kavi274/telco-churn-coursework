@@ -1,0 +1,31 @@
+,0
+Contract_Month-to-month,0.6100526644336352
+tenure,0.11204848576196745
+InternetService_Fiber optic,0.10159612495671286
+MonthlyCharges,0.05409691567219771
+TotalCharges,0.03090329112189403
+OnlineSecurity_No,0.01859493325388331
+OnlineSecurity_No internet service,0.016521678680870396
+TechSupport_No,0.014797863476479937
+PaymentMethod_Electronic check,0.014348367480872764
+StreamingMovies_Yes,0.006665504426852126
+Contract_One year,0.005942754529125141
+PaymentMethod_Mailed check,0.005110417311231583
+Dependents_No,0.004156281139660293
+OnlineBackup_No,0.0023669961545695092
+SeniorCitizen,0.001529188611632128
+TechSupport_Yes,0.0007620334136415062
+gender_Male,0.0005064995747741918
+Partner_Yes,0.0
+Partner_No,0.0
+gender_Female,0.0
+Dependents_Yes,0.0
+MultipleLines_No,0.0
+PhoneService_Yes,0.0
+PhoneService_No,0.0
+InternetService_No,0.0
+OnlineSecurity_Yes,0.0
+MultipleLines_Yes,0.0
+InternetService_DSL,0.0
+MultipleLines_No phone service,0.0
+TechSupport_No internet service,0.0
